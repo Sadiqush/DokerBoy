@@ -55,12 +55,12 @@ async def command_start_handler(message: Message) -> None:
                          "3-\n"
                          "Finally set the url to your Dokploy server:\n`/seturl https://your-domain.com`\n\n"
                          "Other Commands:\n"
-                         "/start_service: Start a service you choose from the menu\n"
-                         "/stop_service: Stop a service you choose from the menu\n"
+                         "/start\\_service: Start a service you choose from the menu\n"
+                         "/stop\\_service: Stop a service you choose from the menu\n"
                          "/reload: Reload a service you choose from the menu\n"
                          "/deploy: Deploy your service you choose from the menu\n"
                          "/redeploy: Redeploy a service you choose from the menu\n",
-                         parse_mode="Markdown")
+                         entities=["`"])
 
 
 @dp.message(Command('seturl'))
