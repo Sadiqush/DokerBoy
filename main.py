@@ -1,19 +1,23 @@
+import asyncio
 import logging
 import json
+import os
 
 import aiohttp
-from aiogram import Bot, Dispatcher, executor, types
+from aiogram import Bot, Dispatcher, types
+from aiogram.client.default import DefaultBotProperties
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from tortoise import Tortoise, run_async
 from tortoise import fields
 from tortoise.models import Model
 from tortoise import Tortoise
 
 
-API_TOKEN = '7403094114:AAHruP3ooH9oCxyiVKqBX9ht8lPXNMuy2N4'
+TOKEN = os.environ["BOT_TOKEN"]
+DB_URL = os.getenv('DB_URL')
 
-logging.basicConfig(level=logging.INFO)
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
+bot = ...
 
 
 class Config(Model):
@@ -27,7 +31,7 @@ class Config(Model):
 
 async def init_db():
     await Tortoise.init(
-        db_url='postgres://user:password@localhost:5432/dbname',
+        db_url=DB_URL,
         modules={'models': ['__main__']}
     )
     await Tortoise.generate_schemas()
@@ -107,5 +111,14 @@ async def process_callback(callback_query: types.CallbackQuery):
                 await callback_query.answer(f"Failed to {command} {app_name}")
 
 
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True, on_startup=init_db)
+async def run() -> None:
+    global bot
+    bot = Bot(token=TOKEN, default=DefaultBotProperties())
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    logging.info('Initializing...')
+    logging.basicConfig(level=logging.INFO)
+    run_async(init_db())
+    asyncio.run(run())
