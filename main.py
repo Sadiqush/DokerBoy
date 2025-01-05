@@ -100,7 +100,7 @@ async def handle_command(message: types.Message):
     await message.reply(f"Select application to {command}:", reply_markup=keyboard)
 
 
-@dp.callback_query_handler(lambda c: c.data.startswith('app_'))
+@dp.callback_query(lambda c: c.data.startswith('app_'))
 async def process_callback(callback_query: types.CallbackQuery):
     app_name = callback_query.data.split('_')[1]
     command = callback_query.message.text.split()[3].replace(':', '')
