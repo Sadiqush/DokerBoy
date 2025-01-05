@@ -12,7 +12,6 @@ from tortoise import fields
 from tortoise.models import Model
 from tortoise import Tortoise
 
-
 TOKEN = os.environ["BOT_TOKEN"]
 DB_URL = os.getenv('DB_URL')
 
@@ -165,6 +164,10 @@ async def create_apps_keyboard(userid: int):
 @dp.message(Command('stop_service'))
 @dp.message(Command('start_service'))
 async def handle_command(message: types.Message):
+    config = await Config.get_or_none(id=message.from_user.id)
+    if not config.url or not config.token:
+        await message.reply(text="URL or token not set yet!\n Use /seturl and /settoken")
+        return None
     command = message.text[1:]
     if '_' in command:
         command = command.split('_')[0]
@@ -180,11 +183,6 @@ async def process_callback(callback_query: types.CallbackQuery):
     command = callback_query.message.text.split()[3].replace(':', '')
 
     config = await Config.get_or_none(id=callback_query.from_user.id)
-    if not config.url or not config.token:
-        await bot.edit_message_text(text="URL or token not set yet!\n Use /seturl and /settoken",
-                                    chat_id=callback_query.from_user.id,
-                                    message_id=callback_query.message.message_id)
-        return
 
     async with aiohttp.ClientSession() as session:
         url = urljoin(config.url, f"/api/{dokitem.get_type()}.{command}")
