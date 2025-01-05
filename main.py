@@ -48,16 +48,20 @@ async def command_start_handler(message: Message) -> None:
 async def command_start_handler(message: Message) -> None:
     await message.answer(f"This bot is designed to give you access to Dokploy's basic functionalities easily through "
                          f"Telegram. The only thing you need to do is to set you url and token once, and that's it.\n\n"
-                         "To get your token you need to login to your Dokploy's UI interface and follow these steps:\n"
-                         "Go to Settings -> Scroll down to API/CLI -> Generate Token -> Copy token\n"
-                         "Then paste your token to this bot:\n /settoken <token>\n\n"
-                         "Finally set the url to your Dokploy server:\n /seturl https://your-domain.com\n\n"
+                         "To get your token you need to login to your Dokploy's UI interface and follow these steps:\n\n"
+                         "1-\n"
+                         "Go to Settings -> Scroll down to API/CLI -> Generate Token -> Copy token\n\n"
+                         "2-\n"
+                         "Then paste your token to this bot:\n`/settoken <token>`\n\n"
+                         "3-\n"
+                         "Finally set the url to your Dokploy server:\n`/seturl https://your-domain.com`\n\n"
                          "Other Commands:\n"
-                         "/start: Start a service you choose from the menu"
-                         "/stop: Stop a service you choose from the menu"
-                         "/reload: Reload a service you choose from the menu"
-                         "/deploy: Deploy your service you choose from the menu"
-                         "/redeploy: Redeploy a service you choose from the menu")
+                         "/start: Start a service you choose from the menu\n"
+                         "/stop: Stop a service you choose from the menu\n"
+                         "/reload: Reload a service you choose from the menu\n"
+                         "/deploy: Deploy your service you choose from the menu\n"
+                         "/redeploy: Redeploy a service you choose from the menu\n",
+                         parse_mode="Markdown")
 
 
 @dp.message(Command('seturl'))
