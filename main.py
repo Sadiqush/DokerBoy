@@ -17,8 +17,8 @@ from tortoise import Tortoise
 TOKEN = os.environ["BOT_TOKEN"]
 DB_URL = os.getenv('DB_URL')
 
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
-bot = ...
 
 
 class Config(Model):
@@ -122,8 +122,6 @@ async def process_callback(callback_query: types.CallbackQuery):
 
 
 async def run() -> None:
-    global bot
-    bot = Bot(token=TOKEN, default=DefaultBotProperties())
     await dp.start_polling(bot)
 
 
