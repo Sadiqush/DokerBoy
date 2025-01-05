@@ -56,8 +56,8 @@ async def command_start_handler(message: Message) -> None:
                          "3-\n"
                          "Finally set the url to your Dokploy server:\n`/seturl https://your-domain.com`\n\n"
                          "Other Commands:\n"
-                         "/start: Start a service you choose from the menu\n"
-                         "/stop: Stop a service you choose from the menu\n"
+                         "/start_service: Start a service you choose from the menu\n"
+                         "/stop_service: Stop a service you choose from the menu\n"
                          "/reload: Reload a service you choose from the menu\n"
                          "/deploy: Deploy your service you choose from the menu\n"
                          "/redeploy: Redeploy a service you choose from the menu\n",
@@ -162,10 +162,12 @@ async def create_apps_keyboard(userid: int):
 @dp.message(Command('deploy'))
 @dp.message(Command('reload'))
 @dp.message(Command('redeploy'))
-@dp.message(Command('stop'))
-@dp.message(Command('start'))
+@dp.message(Command('stop_service'))
+@dp.message(Command('start_service'))
 async def handle_command(message: types.Message):
     command = message.text[1:]
+    if '_' in command:
+        command = command.split('_')[0]
     keyboard = await create_apps_keyboard(userid=message.from_user.id)
     await message.reply(f"Select application to {command}:\n\n [Project]: [Application]", reply_markup=keyboard)
 
