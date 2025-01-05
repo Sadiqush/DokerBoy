@@ -1,0 +1,4 @@
+tortoise-orm==0.21.6
+asyncpg==0.29.*
+aiogram==3.13.*
+aiohttp
