@@ -19,18 +19,6 @@ DB_URL = os.getenv('DB_URL')
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-bot.set_my_commands([
-    types.BotCommand(command='/start', description='Start the bot'),
-    types.BotCommand(command='/help', description='Show help information'),
-    types.BotCommand(command='/seturl', description='Set URL to your Dokploy'),
-    types.BotCommand(command='/settoken', description='Set your Dokploy Token'),
-    types.BotCommand(command='/start', description='Start Your Dokploy application'),
-    types.BotCommand(command='/stop', description='Stop Your Dokploy application'),
-    types.BotCommand(command='/reload', description='Reload Your Dokploy application'),
-    types.BotCommand(command='/deploy', description='Deploy Your Dokploy application'),
-    types.BotCommand(command='/redeploy', description='Redeploy Your Dokploy application')
-])
-
 
 class Config(Model):
     id = fields.CharField(20, pk=True, unique=True)
@@ -208,6 +196,17 @@ async def process_callback(callback_query: types.CallbackQuery):
 
 
 async def run() -> None:
+    await bot.set_my_commands([
+        types.BotCommand(command='/start', description='Start the bot'),
+        types.BotCommand(command='/help', description='Show help information'),
+        types.BotCommand(command='/seturl', description='Set URL to your Dokploy'),
+        types.BotCommand(command='/settoken', description='Set your Dokploy Token'),
+        types.BotCommand(command='/start', description='Start Your Dokploy application'),
+        types.BotCommand(command='/stop', description='Stop Your Dokploy application'),
+        types.BotCommand(command='/reload', description='Reload Your Dokploy application'),
+        types.BotCommand(command='/deploy', description='Deploy Your Dokploy application'),
+        types.BotCommand(command='/redeploy', description='Redeploy Your Dokploy application')
+    ])
     await dp.start_polling(bot)
 
 
