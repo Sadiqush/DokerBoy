@@ -60,7 +60,7 @@ async def command_start_handler(message: Message) -> None:
                          "/reload: Reload a service you choose from the menu\n"
                          "/deploy: Deploy your service you choose from the menu\n"
                          "/redeploy: Redeploy a service you choose from the menu\n",
-                         entities=["`"])
+                         parse_mode="Markdown")
 
 
 @dp.message(Command('seturl'))
