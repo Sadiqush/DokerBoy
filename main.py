@@ -205,8 +205,8 @@ async def run() -> None:
         types.BotCommand(command='/help', description='Show help information'),
         types.BotCommand(command='/seturl', description='Set URL to your Dokploy'),
         types.BotCommand(command='/settoken', description='Set your Dokploy Token'),
-        types.BotCommand(command='/start', description='Start Your Dokploy application'),
-        types.BotCommand(command='/stop', description='Stop Your Dokploy application'),
+        types.BotCommand(command='/start_service', description='Start Your Dokploy application'),
+        types.BotCommand(command='/stop_service', description='Stop Your Dokploy application'),
         types.BotCommand(command='/reload', description='Reload Your Dokploy application'),
         types.BotCommand(command='/deploy', description='Deploy Your Dokploy application'),
         types.BotCommand(command='/redeploy', description='Redeploy Your Dokploy application')

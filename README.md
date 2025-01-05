@@ -51,7 +51,7 @@ This project is a Telegram bot designed to provide easy access to Dokploy's basi
    - `/help`: Get information on how to use the bot
    - `/seturl <url>`: Set the URL for your Dokploy server
    - `/settoken <token>`: Set your Dokploy API token
-   - `/start`, `/stop`, `/reload`, `/deploy`, `/redeploy`: Manage your Dokploy applications
+   - `/start_service`, `/stop_service`, `/reload`, `/deploy`, `/redeploy`: Manage your Dokploy applications
 
 ## Database Setup
 
