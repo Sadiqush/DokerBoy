@@ -5,8 +5,9 @@ import os
 
 import aiohttp
 from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command, CommandStart
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from tortoise import Tortoise, run_async
 from tortoise import fields
 from tortoise.models import Model
@@ -37,7 +38,12 @@ async def init_db():
     await Tortoise.generate_schemas()
 
 
-@dp.message_handler(commands=['seturl'])
+@dp.message(CommandStart())
+async def command_start_handler(message: Message) -> None:
+    await message.answer(f"Hello, {message.from_user.full_name}!")
+
+
+@dp.message(Command('seturl'))
 async def set_url(message: types.Message):
     url = message.text.split()[1]
     config = await Config.first()
@@ -49,7 +55,7 @@ async def set_url(message: types.Message):
     await message.reply("URL has been set!")
 
 
-@dp.message_handler(commands=['settoken'])
+@dp.message(Command('settoken'))
 async def set_token(message: types.Message):
     token = message.text.split()[1]
     config = await Config.first()
@@ -83,7 +89,11 @@ async def create_apps_keyboard():
     return keyboard
 
 
-@dp.message_handler(commands=['deploy', 'reload', 'redeploy', 'stop', 'start'])
+@dp.message(Command('deploy'))
+@dp.message(Command('reload'))
+@dp.message(Command('redeploy'))
+@dp.message(Command('stop'))
+@dp.message(Command('start'))
 async def handle_command(message: types.Message):
     command = message.get_command()[1:]
     keyboard = await create_apps_keyboard()
