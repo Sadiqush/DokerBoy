@@ -61,12 +61,8 @@ async def command_start_handler(message: Message) -> None:
                          "Then paste your API Key to this bot:\n`/setapikey <key>`\n\n"
                          "3-\n"
                          "Finally set the url to your Dokploy server:\n`/seturl https://your-domain.com`\n\n"
-                         "Other Commands:\n"
-                         "/start\\_service: Start a service you choose from the menu\n"
-                         "/stop\\_service: Stop a service you choose from the menu\n"
-                         "/reload: Reload a service you choose from the menu\n"
-                         "/deploy: Deploy your service you choose from the menu\n"
-                         "/redeploy: Redeploy a service you choose from the menu\n",
+                         "Usage:\n"
+                         "`/services` will give you a list of your projects and you can manage them here.\n",
                          parse_mode="Markdown")
 
 
