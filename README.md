@@ -1,12 +1,12 @@
 # DokerBoy
 
-This project is a Telegram bot designed to provide easy access to Dokploy's basic functionalities. Users can manage their Dokploy applications directly through Telegram by setting up their URL and token.
+This project is a Telegram bot designed to provide easy access to Dokploy's basic functionalities. Users can manage their Dokploy applications directly through Telegram by setting up their URL and API Key.
 
 ## Features
 
+- List available applications for management
 - Start and stop services and applications
 - Supports applications, composes and databases
-- List available applications for management
 
 ## Requirements
 
@@ -42,7 +42,7 @@ This project is a Telegram bot designed to provide easy access to Dokploy's basi
 1. Run the bot:
 
    ```bash
-   python bot.py
+   python main.py
    ```
 
 2. Start a chat with your bot on Telegram and use the following commands:
@@ -51,11 +51,23 @@ This project is a Telegram bot designed to provide easy access to Dokploy's basi
    - `/help`: Get information on how to use the bot
    - `/seturl <url>`: Set the URL for your Dokploy server
    - `/settoken <token>`: Set your Dokploy API token
-   - `/start_service`, `/stop_service`, `/reload`, `/deploy`, `/redeploy`: Manage your Dokploy applications
+   - `/services`: Manage your Dokploy applications
 
 ## Database Setup
 
 This bot uses Tortoise ORM for database interactions. Ensure that your database is properly configured and accessible via the `DB_URL`.
+
+### Database description
+
+**Table Name:** config
+
+#### Fields:
+
+* **id:** (CharField, 20 chars) - Primary key, unique
+
+* **url:** (CharField, 255 chars) - Optional (nullable)
+
+* **api_key:** (CharField, 255 chars) - Optional (nullable)
 
 ## Contributing
 
