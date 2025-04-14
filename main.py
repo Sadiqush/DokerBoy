@@ -97,7 +97,7 @@ async def get_projects(userid: int) -> dict[str, "JSON"]:
 
     async with aiohttp.ClientSession() as session:
         async with session.get(urljoin(config.url, "/api/project.all"),
-                               headers={"Authorization": f"Bearer {config.token}"}) as resp:
+                               headers={"x-api-key": config.token}) as resp:
             if resp.status == 200:
                 data = await resp.json()
                 return data
@@ -186,7 +186,7 @@ async def process_callback(callback_query: types.CallbackQuery):
 
     async with aiohttp.ClientSession() as session:
         url = urljoin(config.url, f"/api/{dokitem.get_type()}.{command}")
-        headers = {"Authorization": f"Bearer {config.token}"}
+        headers = {"x-api-key": config.token}
         body = {f"{dokitem.get_type()}Id": dokitem.app_id}
         async with session.post(url, headers=headers, data=body) as resp:
             if resp.status == 200:
