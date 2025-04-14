@@ -18,6 +18,10 @@ DB_URL = os.getenv('DB_URL')
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# Global dictionaries to store user session data
+user_projects: dict[int, list] = {}  # Maps user id to list of project JSONs
+user_project_services: dict[int, dict[int, list]] = {}  # Maps user id -> {project_index: [DokItem, ...]}
+
 
 class Config(Model):
     id = fields.CharField(20, pk=True, unique=True)
@@ -40,8 +44,9 @@ async def init_db():
 async def command_start_handler(message: Message) -> None:
     if not await Config.get_or_none(id=message.from_user.id):
         await Config.create(id=message.from_user.id)
-    await message.answer(f"Hello, {message.from_user.full_name}!\n\n"
-                         "Use /help to know how to use this bot.")
+    await message.answer(
+        f"Hello, {message.from_user.full_name}!\n\nUse /help to know how to use this bot."
+    )
 
 
 @dp.message(Command('help'))
@@ -68,11 +73,11 @@ async def command_start_handler(message: Message) -> None:
 @dp.message(Command('seturl'))
 async def set_url(message: types.Message):
     if message.text.strip() == '/seturl':
-        await message.reply("Invalid! \nUse this command like this:\n\n/seturl https://your-domain.com")
+        await message.reply("Invalid!\nUsage: /seturl https://your-domain.com")
         return
     url = message.text.split()[1]
     if not urlparse(url).scheme:
-        await message.reply("Invalid URL format!\nIt must include the scheme, e.g., https://your-domain.com")
+        await message.reply("Invalid URL format!\nIt must include the full scheme (e.g., https://your-domain.com)")
         return
     config = await Config.get(id=message.from_user.id)
     config.url = url
@@ -92,26 +97,8 @@ async def set_apikey(message: types.Message):
     await message.reply("API Key has been set!")
 
 
-# Keep a cache of services by user id to reference them in callback queries.
-# Each service is represented as a DokItem instance.
-user_items: dict[int, list["DokItem"]] = {}
-
-
-# Helper class to store Dokploy service information.
-class DokItem:
-    def __init__(self, index, name, app_name, app_id, project_name, type):
-        self.index: int = index
-        self.name: str = name
-        self.app_name: str = app_name
-        self.app_id: str = app_id
-        self.project_name: str = project_name
-        self.type: str = type
-
-    def get_type(self):
-        return "application" if self.type == "applications" else self.type
-
-
 async def get_projects(userid: int) -> list:
+    """Call Dokploy API to fetch projects."""
     config = await Config.get(id=userid)
     if not config:
         return []
@@ -128,106 +115,166 @@ async def get_projects(userid: int) -> list:
     return []
 
 
-# Creates the initial keyboard listing all services.
-async def create_apps_keyboard(userid: int) -> InlineKeyboardMarkup:
-    projects = await get_projects(userid)
-    buttons = []
-    user_items[userid] = []
-    counter = 0
-    for project in projects:
-        # Looping through potential service types.
-        for key in ["applications", "mariadb", "mongo", "mysql", "postgres", "redis", "compose"]:
-            for app in project.get(key, []):
-                app_id = app.get("applicationId") if key == "applications" else app.get(f"{key}Id")
-                app_name = app["appName"]
-                dokitem = DokItem(
-                    counter,
-                    name=app['name'],
-                    app_name=app_name,
-                    app_id=app_id,
-                    project_name=project["name"],
-                    type=key
-                )
-                user_items[userid].append(dokitem)
-                buttons.append(
-                    [InlineKeyboardButton(
-                        text=f"{project['name']}: {app['name']}",
-                        callback_data=f"service_{counter}"
-                    )]
-                )
-                counter += 1
-    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-    return keyboard
+class DokItem:
+    def __init__(self, index, name, app_name, app_id, project_name, type):
+        self.index: int = index  # Service index within the project
+        self.name: str = name
+        self.app_name: str = app_name
+        self.app_id: str = app_id
+        self.project_name: str = project_name
+        self.type: str = type
+
+    def get_type(self):
+        return "application" if self.type == "applications" else self.type
 
 
-# New command to list all services.
+# Command to list projects
 @dp.message(Command('services'))
 async def services_handler(message: Message) -> None:
     config = await Config.get_or_none(id=message.from_user.id)
     if not config or not config.url or not config.api_key:
-        await message.reply("URL or API Key not set yet!\nPlease use /seturl and /setapikey.")
+        await message.reply("URL or API Key not set!\nPlease use /seturl and /setapikey.")
         return
-    keyboard = await create_apps_keyboard(userid=message.from_user.id)
-    await message.reply("Select a service:", reply_markup=keyboard)
+    projects = await get_projects(message.from_user.id)
+    if not projects:
+        await message.reply("No projects found.")
+        return
+    user_projects[message.from_user.id] = projects
+    buttons = []
+    for idx, project in enumerate(projects):
+        buttons.append(
+            [InlineKeyboardButton(text=project["name"], callback_data=f"project_{idx}")]
+        )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await message.reply("Select a project:", reply_markup=keyboard)
 
 
-# Callback when a user selects a service from the list.
-@dp.callback_query(lambda c: c.data.startswith('service_'))
-async def process_service_selection(callback_query: types.CallbackQuery):
+# Callback when a project button is pressed.
+@dp.callback_query(lambda c: c.data.startswith('project_'))
+async def process_project_selection(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
     try:
-        index = int(callback_query.data.split('_')[1])
-        service_item = user_items[callback_query.from_user.id][index]
+        project_index = int(callback_query.data.split("_")[1])
+        project = user_projects[user_id][project_index]
     except (IndexError, ValueError):
-        await callback_query.answer("Invalid service selected.")
+        await callback_query.answer("Invalid project selection!")
         return
 
-    # Create an inline keyboard with action buttons
-    actions = ["start", "stop", "restart", "reload", "deploy", "redeploy"]
-    action_buttons = [
-        [InlineKeyboardButton(text=action.capitalize(), callback_data=f"action_{action}_{index}")]
-        for action in actions
-    ]
-    keyboard = InlineKeyboardMarkup(inline_keyboard=action_buttons)
-    text = (f"Service: {service_item.name}\n"
-            f"Project: {service_item.project_name}\n\n"
-            "Choose an action:")
+    # Build the list of services for the selected project.
+    services = []
+    counter = 0
+    # Loop over different keys where services might be stored.
+    for key in ["applications", "mariadb", "mongo", "mysql", "postgres", "redis", "compose"]:
+        for app in project.get(key, []):
+            if key == "applications":
+                app_id = app.get("applicationId")
+            else:
+                app_id = app.get(f"{key}Id")
+            app_name = app.get("appName")
+            dokitem = DokItem(
+                counter,
+                name=app.get("name"),
+                app_name=app_name,
+                app_id=app_id,
+                project_name=project["name"],
+                type=key
+            )
+            services.append(dokitem)
+            counter += 1
+
+    if user_id not in user_project_services:
+        user_project_services[user_id] = {}
+    user_project_services[user_id][project_index] = services
+
+    if not services:
+        await bot.edit_message_text(
+            text=f"Project: {project['name']}\nNo services found for this project.",
+            chat_id=user_id,
+            message_id=callback_query.message.message_id
+        )
+        return
+
+    # Build a keyboard of services.
+    buttons = []
+    for dokitem in services:
+        buttons.append(
+            [InlineKeyboardButton(text=dokitem.name, callback_data=f"service_{project_index}_{dokitem.index}")]
+        )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    text = f"Project: {project['name']}\nSelect a service:"
     await bot.edit_message_text(
         text=text,
-        chat_id=callback_query.from_user.id,
+        chat_id=user_id,
         message_id=callback_query.message.message_id,
         reply_markup=keyboard
     )
-    await callback_query.answer()  # Acknowledge callback
+    await callback_query.answer()
 
 
-# Callback when an action is chosen.
+# Callback when a service is selected.
+@dp.callback_query(lambda c: c.data.startswith('service_'))
+async def process_service_selection(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    try:
+        # Expected format: service_{project_index}_{service_index}
+        _, project_idx, service_idx = callback_query.data.split('_')
+        project_idx = int(project_idx)
+        service_idx = int(service_idx)
+        dokitem = user_project_services[user_id][project_idx][service_idx]
+    except (IndexError, ValueError):
+        await callback_query.answer("Invalid service selection!")
+        return
+
+    # Create an inline keyboard with action buttons.
+    actions = ["start", "stop", "restart", "reload", "deploy", "redeploy"]
+    action_buttons = [
+        [InlineKeyboardButton(text=action.capitalize(), callback_data=f"action_{action}_{project_idx}_{service_idx}")]
+        for action in actions
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=action_buttons)
+    text = (f"Service: {dokitem.name}\n"
+            f"Project: {dokitem.project_name}\n\n"
+            "Choose an action:")
+    await bot.edit_message_text(
+        text=text,
+        chat_id=user_id,
+        message_id=callback_query.message.message_id,
+        reply_markup=keyboard
+    )
+    await callback_query.answer()
+
+
+# Callback to process the selected action.
 @dp.callback_query(lambda c: c.data.startswith('action_'))
 async def process_action(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
     try:
-        _, action, index_str = callback_query.data.split('_')
-        index = int(index_str)
-        service_item = user_items[callback_query.from_user.id][index]
+        # Expected format: action_{action}_{project_idx}_{service_idx}
+        _, action, project_idx, service_idx = callback_query.data.split('_')
+        project_idx = int(project_idx)
+        service_idx = int(service_idx)
+        dokitem = user_project_services[user_id][project_idx][service_idx]
     except (IndexError, ValueError):
         await callback_query.answer("Invalid action!")
         return
 
     config = await Config.get(id=callback_query.from_user.id)
-    url = urljoin(str(config.url), f"/api/{service_item.get_type()}.{action}")
+    url = urljoin(str(config.url), f"/api/{dokitem.get_type()}.{action}")
     headers = {"x-api-key": config.api_key}
-    body = {f"{service_item.get_type()}Id": service_item.app_id}
+    body = {f"{dokitem.get_type()}Id": dokitem.app_id}
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, data=body) as resp:
             if resp.status == 200:
-                result_text = f"Successfully {action}ed {service_item.app_name}"
+                result_text = f"Successfully {action}ed {dokitem.app_name}"
             else:
-                result_text = f"Failed to {action} {service_item.app_name}"
+                result_text = f"Failed to {action} {dokitem.app_name}"
     await bot.edit_message_text(
         text=result_text,
-        chat_id=callback_query.from_user.id,
+        chat_id=user_id,
         message_id=callback_query.message.message_id
     )
-    await callback_query.answer()  # Acknowledge callback
+    await callback_query.answer()
 
 
 async def run() -> None:
