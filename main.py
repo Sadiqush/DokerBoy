@@ -152,10 +152,11 @@ async def services_handler(message: Message) -> None:
 # Callback when a project button is pressed.
 @dp.callback_query(lambda c: c.data.startswith('project_'))
 async def process_project_selection(callback_query: types.CallbackQuery):
+    """Get all services (applications) in this project."""
     user_id = callback_query.from_user.id
     try:
         project_index = int(callback_query.data.split("_")[1])
-        project = user_projects[user_id][project_index]
+        project: [DokItem] = user_projects[user_id][project_index]
     except (IndexError, ValueError):
         await callback_query.answer("Invalid project selection!")
         return
@@ -188,7 +189,7 @@ async def process_project_selection(callback_query: types.CallbackQuery):
 
     if not services:
         await bot.edit_message_text(
-            text=f"Project: {project['name']}\nNo services found for this project.",
+            text=f"Project: {project['name']}\n\nNo services found for this project.",
             chat_id=user_id,
             message_id=callback_query.message.message_id
         )
@@ -232,8 +233,8 @@ async def process_service_selection(callback_query: types.CallbackQuery):
         for action in actions
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=action_buttons)
-    text = (f"Service: {dokitem.name}\n"
-            f"Project: {dokitem.project_name}\n\n"
+    text = (f"Project: {dokitem.project_name}\n"
+            f"Service: {dokitem.name}\n\n"
             "Choose an action:")
     await bot.edit_message_text(
         text=text,
