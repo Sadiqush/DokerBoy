@@ -1,9 +1,9 @@
 import asyncio
 import logging
 import os
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
-from urllib.parse import urljoin, urlparse
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command, CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
@@ -40,7 +40,8 @@ async def init_db():
 async def command_start_handler(message: Message) -> None:
     if not await Config.get_or_none(id=message.from_user.id):
         await Config.create(id=message.from_user.id)
-    await message.answer(f"Hello, {message.from_user.full_name}!\n\n Use /help to know how to use this bot.")
+    await message.answer(f"Hello, {message.from_user.full_name}!\n\n"
+                         "Use /help to know how to use this bot.")
 
 
 @dp.message(Command('help'))
@@ -66,13 +67,13 @@ async def command_start_handler(message: Message) -> None:
 
 @dp.message(Command('seturl'))
 async def set_url(message: types.Message):
-    if message.text == '/seturl':
+    if message.text.strip() == '/seturl':
         await message.reply("Invalid! \nUse this command like this:\n\n/seturl https://your-domain.com")
-        return None
+        return
     url = message.text.split()[1]
     if not urlparse(url).scheme:
-        await message.reply("Invalid URL format!\nIt needs to have full scheme, e.g: https://your-domain.com")
-        return None
+        await message.reply("Invalid URL format!\nIt must include the scheme, e.g., https://your-domain.com")
+        return
     config = await Config.get(id=message.from_user.id)
     config.url = url
     await config.save()
@@ -91,22 +92,12 @@ async def set_apikey(message: types.Message):
     await message.reply("API Key has been set!")
 
 
-async def get_projects(userid: int) -> dict[str, "JSON"]:
-    config = await Config.get(id=userid)
-    if not config:
-        return []
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(urljoin(config.url, "/api/project.all"),
-                               headers={"x-api-key": config.api_key}) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                return data
-            else:
-                logging.error(f"Error: {resp.text()}")
-    return []
+# Keep a cache of services by user id to reference them in callback queries.
+# Each service is represented as a DokItem instance.
+user_items: dict[int, list["DokItem"]] = {}
 
 
+# Helper class to store Dokploy service information.
 class DokItem:
     def __init__(self, index, name, app_name, app_id, project_name, type):
         self.index: int = index
@@ -117,27 +108,37 @@ class DokItem:
         self.type: str = type
 
     def get_type(self):
-        if self.type == "applications":
-            return "application"
-        else:
-            return self.type
+        return "application" if self.type == "applications" else self.type
 
 
-user_items: dict[int, list[DokItem]] = {}
+async def get_projects(userid: int) -> list:
+    config = await Config.get(id=userid)
+    if not config:
+        return []
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            urljoin(config.url, "/api/project.all"),
+            headers={"x-api-key": config.api_key}
+        ) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                return data
+            else:
+                logging.error(f"Error fetching projects: {await resp.text()}")
+    return []
 
 
-async def create_apps_keyboard(userid: int):
+# Creates the initial keyboard listing all services.
+async def create_apps_keyboard(userid: int) -> InlineKeyboardMarkup:
     projects = await get_projects(userid)
     buttons = []
     user_items[userid] = []
     counter = 0
     for project in projects:
+        # Looping through potential service types.
         for key in ["applications", "mariadb", "mongo", "mysql", "postgres", "redis", "compose"]:
-            for app in project[key]:
-                if key == "applications":
-                    app_id = app["applicationId"]
-                else:
-                    app_id = app[f"{key}Id"]
+            for app in project.get(key, []):
+                app_id = app.get("applicationId") if key == "applications" else app.get(f"{key}Id")
                 app_name = app["appName"]
                 dokitem = DokItem(
                     counter,
@@ -151,7 +152,7 @@ async def create_apps_keyboard(userid: int):
                 buttons.append(
                     [InlineKeyboardButton(
                         text=f"{project['name']}: {app['name']}",
-                        callback_data=f"app_{counter}"
+                        callback_data=f"service_{counter}"
                     )]
                 )
                 counter += 1
@@ -159,45 +160,74 @@ async def create_apps_keyboard(userid: int):
     return keyboard
 
 
-@dp.message(Command('deploy'))
-@dp.message(Command('reload'))
-@dp.message(Command('redeploy'))
-@dp.message(Command('stop_service'))
-@dp.message(Command('start_service'))
-async def handle_command(message: types.Message):
+# New command to list all services.
+@dp.message(Command('services'))
+async def services_handler(message: Message) -> None:
     config = await Config.get_or_none(id=message.from_user.id)
-    if not config.url or not config.api_key:
-        await message.reply(text="URL or API Key not set yet!\n Use /seturl and /setapikey")
-        return None
-    command = message.text[1:]
-    if '_' in command:
-        command = command.split('_')[0]
+    if not config or not config.url or not config.token:
+        await message.reply("URL or token not set yet!\nPlease use /seturl and /settoken.")
+        return
     keyboard = await create_apps_keyboard(userid=message.from_user.id)
-    await message.reply(f"Select application to {command}:\n\n [Project]: [Application]", reply_markup=keyboard)
+    await message.reply("Select a service:", reply_markup=keyboard)
 
 
-@dp.callback_query(lambda c: c.data.startswith('app_'))
-async def process_callback(callback_query: types.CallbackQuery):
-    for item in user_items[callback_query.from_user.id]:
-        if item.index == int(callback_query.data.split('_')[1]):
-            dokitem = item
-    command = callback_query.message.text.split()[3].replace(':', '')
+# Callback when a user selects a service from the list.
+@dp.callback_query(lambda c: c.data.startswith('service_'))
+async def process_service_selection(callback_query: types.CallbackQuery):
+    try:
+        index = int(callback_query.data.split('_')[1])
+        service_item = user_items[callback_query.from_user.id][index]
+    except (IndexError, ValueError):
+        await callback_query.answer("Invalid service selected.")
+        return
 
-    config = await Config.get_or_none(id=callback_query.from_user.id)
+    # Create an inline keyboard with action buttons
+    actions = ["start", "stop", "restart", "reload", "deploy", "redeploy"]
+    action_buttons = [
+        [InlineKeyboardButton(text=action.capitalize(), callback_data=f"action_{action}_{index}")]
+        for action in actions
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=action_buttons)
+    text = (f"Service: {service_item.name}\n"
+            f"Project: {service_item.project_name}\n\n"
+            "Choose an action:")
+    await bot.edit_message_text(
+        text=text,
+        chat_id=callback_query.from_user.id,
+        message_id=callback_query.message.message_id,
+        reply_markup=keyboard
+    )
+    await callback_query.answer()  # Acknowledge callback
+
+
+# Callback when an action is chosen.
+@dp.callback_query(lambda c: c.data.startswith('action_'))
+async def process_action(callback_query: types.CallbackQuery):
+    try:
+        _, action, index_str = callback_query.data.split('_')
+        index = int(index_str)
+        service_item = user_items[callback_query.from_user.id][index]
+    except (IndexError, ValueError):
+        await callback_query.answer("Invalid action!")
+        return
+
+    config = await Config.get(callback_query.from_user.id)
+    url = urljoin(config.url, f"/api/{service_item.get_type()}.{action}")
+    headers = {"x-api-key": config.api_key}
+    body = {f"{service_item.get_type()}Id": service_item.app_id}
 
     async with aiohttp.ClientSession() as session:
-        url = urljoin(config.url, f"/api/{dokitem.get_type()}.{command}")
-        headers = {"x-api-key": config.api_key}
-        body = {f"{dokitem.get_type()}Id": dokitem.app_id}
         async with session.post(url, headers=headers, data=body) as resp:
             if resp.status == 200:
-                await bot.edit_message_text(text=f"Successfully {command}ed {dokitem.app_name}",
-                                            chat_id=callback_query.from_user.id,
-                                            message_id=callback_query.message.message_id)
+                result_text = f"Successfully {action}ed {service_item.app_name}"
             else:
-                await bot.edit_message_text(text=f"Failed to {command} {dokitem.app_name}",
-                                            chat_id=callback_query.from_user.id,
-                                            message_id=callback_query.message.message_id)
+                result_text = f"Failed to {action} {service_item.app_name}"
+    await bot.edit_message_text(
+        text=result_text,
+        chat_id=callback_query.from_user.id,
+        message_id=callback_query.message.message_id
+    )
+    await callback_query.answer()  # Acknowledge callback
 
 
 async def run() -> None:
@@ -206,11 +236,7 @@ async def run() -> None:
         types.BotCommand(command='/help', description='Show help information'),
         types.BotCommand(command='/seturl', description='Set URL to your Dokploy'),
         types.BotCommand(command='/setapikey', description='Set your Dokploy API Key'),
-        types.BotCommand(command='/start_service', description='Start Your Dokploy application'),
-        types.BotCommand(command='/stop_service', description='Stop Your Dokploy application'),
-        types.BotCommand(command='/reload', description='Reload Your Dokploy application'),
-        types.BotCommand(command='/deploy', description='Deploy Your Dokploy application'),
-        types.BotCommand(command='/redeploy', description='Redeploy Your Dokploy application')
+        types.BotCommand(command='/services', description='List all services'),
     ])
     await dp.start_polling(bot)
 
