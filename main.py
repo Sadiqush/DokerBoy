@@ -22,7 +22,7 @@ dp = Dispatcher()
 class Config(Model):
     id = fields.CharField(20, pk=True, unique=True)
     url = fields.CharField(max_length=255, null=True)
-    token = fields.CharField(max_length=255, null=True)
+    api_key = fields.CharField(max_length=255, null=True)
 
     class Meta:
         table = "config"
