@@ -46,12 +46,13 @@ async def command_start_handler(message: Message) -> None:
 @dp.message(Command('help'))
 async def command_start_handler(message: Message) -> None:
     await message.answer(f"This bot is designed to give you access to Dokploy's basic functionalities easily through "
-                         f"Telegram. The only thing you need to do is to set you url and token once, and that's it.\n\n"
-                         "To get your token you need to login to your Dokploy's UI interface and follow these steps:\n\n"
+                         f"Telegram. The only thing you need to do is to set you url and API Key once, and that's it.\n\n"
+                         "To get your API Key you need to login to your Dokploy's UI interface and follow these steps:\n\n"
                          "1-\n"
-                         "Go to Settings -> Scroll down to API/CLI -> Generate Token -> Copy token\n\n"
+                         "(IMPORTANT: in version 0.19 Dokploy changed how authorization works, it used Bearer Token but now it uses API Key. If you haven't updated your Dokploy instance, you need to do that first.)\n"
+                         "From side panel go to Settings/Profile -> Scroll down to API/CLI -> Generate New Key -> Generate and copy\n\n"
                          "2-\n"
-                         "Then paste your token to this bot:\n`/settoken <token>`\n\n"
+                         "Then paste your API Key to this bot:\n`/setapikey <key>`\n\n"
                          "3-\n"
                          "Finally set the url to your Dokploy server:\n`/seturl https://your-domain.com`\n\n"
                          "Other Commands:\n"
@@ -78,16 +79,16 @@ async def set_url(message: types.Message):
     await message.reply("URL has been set!")
 
 
-@dp.message(Command('settoken'))
-async def set_token(message: types.Message):
-    if message.text == '/settoken':
-        await message.reply("Invalid! \nUse this command like this:\n\n/settoken <token>")
+@dp.message(Command('setapikey'))
+async def set_apikey(message: types.Message):
+    if message.text == '/setapikey':
+        await message.reply("Invalid! \nUse this command like this:\n\n/setapikey <key>")
         return None
-    token = message.text.split()[1]
+    key = message.text.split()[1]
     config = await Config.get(id=message.from_user.id)
-    config.token = token
+    config.api_key = key
     await config.save()
-    await message.reply("Token has been set!")
+    await message.reply("API Key has been set!")
 
 
 async def get_projects(userid: int) -> dict[str, "JSON"]:
@@ -97,7 +98,7 @@ async def get_projects(userid: int) -> dict[str, "JSON"]:
 
     async with aiohttp.ClientSession() as session:
         async with session.get(urljoin(config.url, "/api/project.all"),
-                               headers={"x-api-key": config.token}) as resp:
+                               headers={"x-api-key": config.api_key}) as resp:
             if resp.status == 200:
                 data = await resp.json()
                 return data
@@ -165,8 +166,8 @@ async def create_apps_keyboard(userid: int):
 @dp.message(Command('start_service'))
 async def handle_command(message: types.Message):
     config = await Config.get_or_none(id=message.from_user.id)
-    if not config.url or not config.token:
-        await message.reply(text="URL or token not set yet!\n Use /seturl and /settoken")
+    if not config.url or not config.api_key:
+        await message.reply(text="URL or API Key not set yet!\n Use /seturl and /setapikey")
         return None
     command = message.text[1:]
     if '_' in command:
@@ -186,7 +187,7 @@ async def process_callback(callback_query: types.CallbackQuery):
 
     async with aiohttp.ClientSession() as session:
         url = urljoin(config.url, f"/api/{dokitem.get_type()}.{command}")
-        headers = {"x-api-key": config.token}
+        headers = {"x-api-key": config.api_key}
         body = {f"{dokitem.get_type()}Id": dokitem.app_id}
         async with session.post(url, headers=headers, data=body) as resp:
             if resp.status == 200:
@@ -204,7 +205,7 @@ async def run() -> None:
         types.BotCommand(command='/start', description='Start the bot'),
         types.BotCommand(command='/help', description='Show help information'),
         types.BotCommand(command='/seturl', description='Set URL to your Dokploy'),
-        types.BotCommand(command='/settoken', description='Set your Dokploy Token'),
+        types.BotCommand(command='/setapikey', description='Set your Dokploy API Key'),
         types.BotCommand(command='/start_service', description='Start Your Dokploy application'),
         types.BotCommand(command='/stop_service', description='Stop Your Dokploy application'),
         types.BotCommand(command='/reload', description='Reload Your Dokploy application'),
