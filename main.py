@@ -211,8 +211,8 @@ async def process_action(callback_query: types.CallbackQuery):
         await callback_query.answer("Invalid action!")
         return
 
-    config = await Config.get(callback_query.from_user.id)
-    url = urljoin(config.url, f"/api/{service_item.get_type()}.{action}")
+    config = await Config.get(id=callback_query.from_user.id)
+    url = urljoin(str(config.url), f"/api/{service_item.get_type()}.{action}")
     headers = {"x-api-key": config.api_key}
     body = {f"{service_item.get_type()}Id": service_item.app_id}
 
