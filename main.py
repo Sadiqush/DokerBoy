@@ -164,8 +164,8 @@ async def create_apps_keyboard(userid: int) -> InlineKeyboardMarkup:
 @dp.message(Command('services'))
 async def services_handler(message: Message) -> None:
     config = await Config.get_or_none(id=message.from_user.id)
-    if not config or not config.url or not config.token:
-        await message.reply("URL or token not set yet!\nPlease use /seturl and /settoken.")
+    if not config or not config.url or not config.api_key:
+        await message.reply("URL or API Key not set yet!\nPlease use /seturl and /setapikey.")
         return
     keyboard = await create_apps_keyboard(userid=message.from_user.id)
     await message.reply("Select a service:", reply_markup=keyboard)
